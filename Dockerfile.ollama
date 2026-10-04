@@ -1,0 +1,11 @@
+ARG OLLAMA_IMAGE=ollama/ollama:0.34.3
+FROM ${OLLAMA_IMAGE}
+
+# The upstream image ships the Vulkan loader but no driver; ANV is Mesa's Intel Vulkan driver.
+# vulkan-tools gives `vulkaninfo`, to confirm the iGPU is visible inside the container.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends mesa-vulkan-drivers vulkan-tools \
+    && rm -rf /var/lib/apt/lists/*
+
+# Expose only the Intel driver, so Mesa's llvmpipe (a CPU rasteriser) is never offered as a GPU.
+ENV VK_DRIVER_FILES=/usr/share/vulkan/icd.d/intel_icd.json

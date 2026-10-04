@@ -1,0 +1,5 @@
+# Included only when /dev/accel/accel0 exists. Replaces the ovms device list.
+services:
+  ovms:
+    devices: [/dev/dri, /dev/accel]
+    group_add: ["${RENDER_GID:-render}", "${ACCEL_GID:?}"]
