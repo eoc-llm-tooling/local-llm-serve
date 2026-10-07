@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help dirs devices show list models ovms-pull ollama-models \
+.PHONY: help dirs devices show list enabled-models-config models ovms-pull ollama-models \
         up ovms-up ollama-up ready down ovms-down ollama-down \
         llama-up llama-start llama-down llama-list lint
 
@@ -47,6 +47,7 @@ help:
 	@echo "  devices        GPU and NPU nodes the containers need"
 	@echo "  show           bind, ports, directories, and whether each enabled model is on disk"
 	@echo "  list           every catalog entry"
+	@echo "  enabled-models-config  copy models.enabled.toml to the local file; REPLACE=1 overwrites"
 	@echo "  models         pull or convert what is missing; leave a complete directory in place"
 	@echo "  ovms-pull      one OVMS model: NAME=…  REPLACE=1 deletes that directory first"
 	@echo "  ollama-models  pull enabled Ollama models that are not already stored"
@@ -76,6 +77,13 @@ show: dirs
 
 list:
 	python3 scripts/catalog.py list
+
+enabled-models-config:
+	@if [ -f models.enabled.local.toml ] && [ -z "$(REPLACE)" ]; then \
+	  echo "models.enabled.local.toml kept; REPLACE=1 copies the default over it"; \
+	else \
+	  cp models.enabled.toml models.enabled.local.toml && echo "models.enabled.local.toml"; \
+	fi
 
 models: dirs
 	python3 scripts/catalog.py apply

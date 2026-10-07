@@ -1,6 +1,7 @@
 # local-llm-serve
 
 - Model identity and per-model flags live in `models.toml`. Add a model there. A served model is not a new Makefile variable.
+- Whether a model is enabled lives in `models.enabled.toml`, which lists every name in `models.toml`. A new model gets a line there too.
 - Ports, `BIND`, image tags and the model directories come from `.env`. The Makefile and the compose files hold the same defaults; change both.
 - The OpenVINO pin in `scripts/convert.py` stays on the same release as `OVMS_IMAGE`.
 - `make models` leaves a model directory that already matches the catalog. Rebuilding one OVMS model is `make ovms-pull NAME=… REPLACE=1`.

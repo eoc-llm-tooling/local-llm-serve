@@ -1,5 +1,5 @@
 # What `make models` prepares, and what `make llama-up` can start.
-# enabled = false is listed and starts on demand; it is not prepared or reported as missing.
+# Which models are enabled is in models.enabled.toml.
 # device, pooling, truncate and max_length are written into graph.pbtxt at pull or convert time.
 # A directory that already has that graph is left in place. REPLACE=1 on `make ovms-pull NAME=`
 # deletes that one directory first.
@@ -96,7 +96,6 @@ pooling = "last"
 
 [[llama]]
 name = "qwen3-8b"
-enabled = false
 role = "completion"
 backend = "sycl"
 hf = "Qwen/Qwen3-8B-GGUF:Q4_K_M"
@@ -109,7 +108,6 @@ extra = ["--reasoning-budget", "0"]
 
 [[llama]]
 name = "qwen2.5-7b"
-enabled = false
 role = "completion"
 backend = "sycl"
 hf = "Qwen/Qwen2.5-7B-Instruct-GGUF:Q4_K_M"
@@ -120,7 +118,6 @@ max_tokens = 512
 
 [[llama]]
 name = "gemma3-4b"
-enabled = false
 role = "completion"
 backend = "sycl"
 hf = "ggml-org/gemma-3-4b-it-GGUF:Q4_K_M"
@@ -131,7 +128,6 @@ max_tokens = 512
 
 [[llama]]
 name = "phi4-mini"
-enabled = false
 role = "completion"
 backend = "sycl"
 hf = "unsloth/Phi-4-mini-instruct-GGUF:Q4_K_M"
@@ -142,7 +138,6 @@ max_tokens = 512
 
 [[llama]]
 name = "coder-1.5b"
-enabled = false
 role = "completion"
 backend = "sycl"
 hf = "ggml-org/Qwen2.5-Coder-1.5B-Q8_0-GGUF"
@@ -153,7 +148,6 @@ max_tokens = 512
 
 [[llama]]
 name = "coder-3b"
-enabled = false
 role = "completion"
 backend = "sycl"
 hf = "ggml-org/Qwen2.5-Coder-3B-Q8_0-GGUF"
@@ -164,7 +158,6 @@ max_tokens = 512
 
 [[llama]]
 name = "coder-7b"
-enabled = false
 role = "completion"
 backend = "sycl"
 hf = "ggml-org/Qwen2.5-Coder-7B-Q8_0-GGUF"
