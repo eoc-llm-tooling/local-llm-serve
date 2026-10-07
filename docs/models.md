@@ -10,6 +10,7 @@ General facts from the model cards.
 | Model | Dimension | Longest input (tokens) | Pooling |
 |---|---|---|---|
 | bge-base-en-v1.5 | 768 | 512 | CLS |
+| bge-small-en-v1.5 | 384 | 512 | CLS |
 | Qwen3-Embedding-0.6B | 1024 | 32768 | last token |
 | gte-modernbert-base | 768 | 8192 | CLS |
 
@@ -29,15 +30,15 @@ NPU rows stay out of `config.json` when `/dev/accel/accel0` is absent, including
 
 ## Catalog
 
-`models.toml` lists the models. An OVMS row is a published OpenVINO repository (`prepare` defaults to `pull`) or an ONNX conversion (`prepare = "convert"`). gte-modernbert has no OpenVINO build; optimum-intel no longer exports ModernBERT, and the repository publishes an ONNX file.
+`models.toml` lists the models. An OVMS row is a published OpenVINO repository (`prepare` defaults to `pull`) or an ONNX conversion (`prepare = "convert"`). gte-modernbert has no OpenVINO build; optimum-intel no longer exports ModernBERT, and the repository publishes an ONNX file. bge-small-en-v1.5 has no published OpenVINO build either; pdf-mcp takes its embeddings only from that model.
 
 Flags written into `graph.pbtxt` at pull or convert time:
 
 | Field | What it sets | When a change takes effect |
 |---|---|---|
 | `device` | GPU and NPU are different directories | pull or convert, then an OVMS restart |
-| `pooling` | Qwen3-Embedding is `LAST`. gte-modernbert is `CLS`, read from the repository when the field is unset | same |
-| `truncate` | The bge pull sets it. The other graphs leave it off, so an over-long input is HTTP 400 | same |
+| `pooling` | Qwen3-Embedding is `LAST`. gte-modernbert and bge-small are `CLS`, read from the repository when the field is unset | same |
+| `truncate` | The bge-gpu pull and both bge-small conversions set it. The other graphs leave it off, so an over-long input is HTTP 400 | same |
 | `max_length` | NPU static length. Qwen3 is 2048. gte on the NPU is 256: OVMS 2026.4 compiles a non-Qwen embedding model there only below 1024, and every input is then padded to that length, which suits queries | `REPLACE=1` when the graph is already on disk |
 | `onnx`, `revision` | Which file of a Hugging Face repository becomes the IR | convert |
 | OpenVINO pin in `scripts/convert.py` | The same release as `OVMS_IMAGE`. A conversion is refused when they differ | bump the pin and the image together |

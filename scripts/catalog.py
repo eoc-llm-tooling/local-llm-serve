@@ -349,6 +349,32 @@ def pull_flags(entry: dict) -> list[str]:
     return flags
 
 
+def convert_command(entry: dict, directory: Path) -> list[str]:
+    command = [
+        "uv",
+        "run",
+        "--script",
+        str(CONVERT_PATH),
+        "--source",
+        entry["source"],
+        "--out",
+        str(directory),
+        "--device",
+        entry["device"],
+    ]
+    if entry.get("onnx"):
+        command += ["--onnx", entry["onnx"]]
+    if entry.get("pooling"):
+        command += ["--pooling", entry["pooling"]]
+    if entry.get("revision"):
+        command += ["--revision", entry["revision"]]
+    if entry.get("truncate"):
+        command += ["--truncate"]
+    if entry.get("max_length"):
+        command += ["--max-length", str(entry["max_length"])]
+    return command
+
+
 def compose_base() -> list[str]:
     command = ["docker", "compose", "-f", str(ROOT / "compose.yaml")]
     if accel_present():
@@ -429,27 +455,7 @@ def apply_ovms(catalog: dict, only: str | None, replace: bool) -> None:
         if action["name"] in rebuild and directory.exists():
             safe_rmtree(root, directory)
         if action["prepare"] == "convert":
-            command = [
-                "uv",
-                "run",
-                "--script",
-                str(CONVERT_PATH),
-                "--source",
-                entry["source"],
-                "--out",
-                str(directory),
-                "--device",
-                entry["device"],
-            ]
-            if entry.get("onnx"):
-                command += ["--onnx", entry["onnx"]]
-            if entry.get("pooling"):
-                command += ["--pooling", entry["pooling"]]
-            if entry.get("revision"):
-                command += ["--revision", entry["revision"]]
-            if entry.get("max_length"):
-                command += ["--max-length", str(entry["max_length"])]
-            run(command)
+            run(convert_command(entry, directory))
         else:
             subdir = entry["device"].lower()
             run(

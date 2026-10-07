@@ -10,7 +10,7 @@
 
     uv run --script scripts/convert.py --source Alibaba-NLP/gte-modernbert-base \
         --out ~/.local-llm-serve/ovms/gpu/converted/gte-modernbert-base \
-        [--device GPU] [--pooling CLS]
+        [--device GPU] [--pooling CLS] [--truncate]
 
 For models whose repositories publish an ONNX file (ModernBERT, where optimum-intel no
 longer exports). Writes the layout OVMS serves:
@@ -20,7 +20,7 @@ longer exports). Writes the layout OVMS serves:
   config.json                    OVMS takes the input limit from max_position_embeddings;
                                  without it the limit is 1024
   tokenizer.json and friends     the Hugging Face tokenizer beside the IR
-  graph.pbtxt                    device, pooling, normalisation
+  graph.pbtxt                    device, pooling, normalisation, truncation
 
 Pooling is read from the repository's sentence-transformers config unless --pooling is given.
 The OpenVINO pin matches the release inside OVMS_IMAGE; a tokenizer converted by another
@@ -46,7 +46,7 @@ POOLING = {
 }
 TOKENIZER_FILES = ("tokenizer.json", "tokenizer_config.json", "special_tokens_map.json")
 
-# Truncation off: an over-long input is rejected rather than cut.
+# Without --truncate an over-long input is rejected rather than cut.
 GRAPH = """\
 input_stream: "REQUEST_PAYLOAD:input"
 output_stream: "RESPONSE_PAYLOAD:output"
@@ -62,7 +62,7 @@ node {{
       plugin_config: '{{"NUM_STREAMS": "1" }}',
       normalize_embeddings: true,
       pooling: {pooling},
-      target_device: "{device}"{max_length}
+      target_device: "{device}"{max_length}{truncate}
     }}
   }}
 }}
@@ -80,6 +80,15 @@ def pooling_of(snap: Path) -> str:
     return modes[0]
 
 
+def graph(pooling: str, device: str, max_length: int | None, truncate: bool) -> str:
+    return GRAPH.format(
+        pooling=pooling,
+        device=device,
+        max_length=f",\n      max_length: {max_length}" if max_length else "",
+        truncate=",\n      truncate: true" if truncate else "",
+    )
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawTextHelpFormatter)
     ap.add_argument("--source", required=True, help="Hugging Face repository id")
@@ -89,6 +98,7 @@ def main() -> None:
     ap.add_argument("--device", default="GPU")
     ap.add_argument("--pooling", choices=sorted(set(POOLING.values())))
     ap.add_argument("--max-length", type=int, help="static input length; NPU only, below 1024")
+    ap.add_argument("--truncate", action="store_true", help="cut an over-long input")
     args = ap.parse_args()
     # OVMS 2026.4 compiles a non-Qwen model for the NPU as a static graph only below 1024
     # tokens; at 1024 or more, or with no length, it takes the path built for Qwen3.
@@ -135,9 +145,8 @@ def main() -> None:
         if (snap / name).exists():
             shutil.copyfile(snap / name, args.out / name)
 
-    max_length = f",\n      max_length: {args.max_length}" if args.max_length else ""
     (args.out / "graph.pbtxt").write_text(
-        GRAPH.format(pooling=pooling, device=args.device, max_length=max_length)
+        graph(pooling, args.device, args.max_length, args.truncate)
     )
 
     config = json.loads((snap / "config.json").read_text())
