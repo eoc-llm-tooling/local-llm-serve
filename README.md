@@ -21,6 +21,7 @@ One stack runs at a time: two OVMS processes on one GPU share a compile cache.
 | Name | Server | Device | Role | Model |
 |---|---|---|---|---|
 | `bge-gpu`, `bge-npu` | OVMS | GPU, NPU | embedding | bge-base-en-v1.5, OpenVINO fp16 |
+| `bge-small-gpu`, `bge-small-npu` | OVMS | GPU, NPU | embedding | bge-small-en-v1.5, converted from ONNX |
 | `qwen3-gpu`, `qwen3-npu` | OVMS | GPU, NPU | embedding | Qwen3-Embedding-0.6B, OpenVINO int8 |
 | `gte-gpu`, `gte-npu` | OVMS | GPU, NPU | embedding | gte-modernbert-base, converted from ONNX |
 | `qwen3-embedding:0.6b` | Ollama | GPU (Vulkan) | embedding | Qwen3-Embedding-0.6B |

@@ -19,6 +19,24 @@ pooling = "CLS"
 max_length = 512
 
 [[ovms]]
+name = "bge-small-gpu"
+prepare = "convert"
+source = "BAAI/bge-small-en-v1.5"
+device = "GPU"
+onnx = "onnx/model.onnx"
+truncate = true
+
+[[ovms]]
+name = "bge-small-npu"
+prepare = "convert"
+source = "BAAI/bge-small-en-v1.5"
+device = "NPU"
+onnx = "onnx/model.onnx"
+truncate = true
+# Static length is the BERT window; a longer input is cut to it.
+max_length = 512
+
+[[ovms]]
 name = "qwen3-gpu"
 source = "OpenVINO/Qwen3-Embedding-0.6B-int8-ov"
 device = "GPU"
