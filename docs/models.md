@@ -38,7 +38,7 @@ Flags written into `graph.pbtxt` at pull or convert time:
 |---|---|---|
 | `device` | GPU and NPU are different directories | pull or convert, then an OVMS restart |
 | `pooling` | Qwen3-Embedding is `LAST`. gte-modernbert and bge-small are `CLS`, read from the repository when the field is unset | same |
-| `truncate` | The bge-gpu pull and both bge-small conversions set it. The other graphs leave it off, so an over-long input is HTTP 400 | same |
+| `truncate` | The bge-gpu pull and both bge-small conversions set it. OVMS 2026.4.0 ignores it: it passes `max_length` to the tokenizer without turning truncation on, so an over-long input is HTTP 400 on every graph, and `make models` warns. The caller keeps each input within the model's length | same |
 | `max_length` | NPU static length. Qwen3 is 2048. gte on the NPU is 256: OVMS 2026.4 compiles a non-Qwen embedding model there only below 1024, and every input is then padded to that length, which suits queries | `REPLACE=1` when the graph is already on disk |
 | `onnx`, `revision` | Which file of a Hugging Face repository becomes the IR | convert |
 | OpenVINO pin in `scripts/convert.py` | The same release as `OVMS_IMAGE`. A conversion is refused when they differ | bump the pin and the image together |

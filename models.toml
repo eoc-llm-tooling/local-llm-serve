@@ -33,7 +33,7 @@ source = "BAAI/bge-small-en-v1.5"
 device = "NPU"
 onnx = "onnx/model.onnx"
 truncate = true
-# Static length is the BERT window; a longer input is cut to it.
+# Static length is the BERT window.
 max_length = 512
 
 [[ovms]]
