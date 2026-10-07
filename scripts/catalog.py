@@ -21,6 +21,9 @@ ROOT = Path(__file__).resolve().parent.parent
 CATALOG_PATH = ROOT / "models.toml"
 CONVERT_PATH = ROOT / "scripts" / "convert.py"
 OVMS_CONTAINER = "local-llm-serve-ovms"
+# OVMS releases checked to ignore graph `truncate`: they pass max_length to the tokenizer without
+# truncation, so an over-long input is still HTTP 400.
+TRUNCATE_IGNORED = ("2026.4.0",)
 
 LLAMA_IMAGES = {
     "sycl": "ghcr.io/ggml-org/llama.cpp:server-intel",
@@ -327,8 +330,23 @@ def image_release(image: str) -> str:
     return match.group(1) if match else ""
 
 
+def ovms_image() -> str:
+    return os.environ.get("OVMS_IMAGE", "openvino/model_server:2026.4.0-gpu")
+
+
+def truncate_warning(entries: list[dict], release: str) -> str | None:
+    names = [entry["name"] for entry in entries if entry.get("truncate")]
+    if not names:
+        return None
+    head = f"warning: truncate is set on {', '.join(names)}"
+    if release in TRUNCATE_IGNORED:
+        return f"{head}, but OVMS {release} ignores it: an over-long input is HTTP 400"
+    checked = ", ".join(TRUNCATE_IGNORED)
+    return f"{head}; OVMS {checked} ignores it, and {release or '?'} is unchecked"
+
+
 def check_openvino_pin() -> None:
-    image = os.environ.get("OVMS_IMAGE", "openvino/model_server:2026.4.0-gpu")
+    image = ovms_image()
     pin = openvino_pin()
     release = image_release(image)
     if release != pin:
@@ -434,6 +452,11 @@ def apply_ovms(catalog: dict, only: str | None, replace: bool) -> None:
         if not actions:
             ovms_entry(catalog, only)
             raise SystemExit(f"{only} is disabled or not an ovms model")
+    warning = truncate_warning(
+        [ovms_entry(catalog, action["name"]) for action in actions], image_release(ovms_image())
+    )
+    if warning:
+        print(warning)
     rebuild = {action["name"] for action in actions} if replace else set()
     if replace and not only:
         raise SystemExit("REPLACE=1 needs NAME=, so one model directory is deleted")

@@ -287,6 +287,29 @@ class OllamaTests(unittest.TestCase):
             self.assertTrue(catalog.ollama_present(root, "qwen3-embedding:0.6b"))
 
 
+TRUNCATE_ENTRIES = [
+    {"name": "bge-gpu", "truncate": True},
+    {"name": "gte-gpu"},
+    {"name": "bge-small-npu", "truncate": True},
+]
+
+
+class TruncateWarningTests(unittest.TestCase):
+    def test_checked_release(self) -> None:
+        warning = catalog.truncate_warning(TRUNCATE_ENTRIES, "2026.4.0")
+        self.assertIn("bge-gpu, bge-small-npu", warning)
+        self.assertIn("OVMS 2026.4.0 ignores it", warning)
+        self.assertNotIn("gte-gpu", warning)
+
+    def test_unchecked_release(self) -> None:
+        warning = catalog.truncate_warning(TRUNCATE_ENTRIES, "2026.5.0")
+        self.assertIn("2026.5.0 is unchecked", warning)
+        self.assertNotIn("HTTP 400", warning)
+
+    def test_none_without_truncate(self) -> None:
+        self.assertIsNone(catalog.truncate_warning([{"name": "gte-gpu"}], "2026.4.0"))
+
+
 class CatalogFileTests(unittest.TestCase):
     def test_shipped_catalog(self) -> None:
         loaded = catalog.load_catalog()
