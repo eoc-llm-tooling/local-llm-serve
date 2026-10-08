@@ -21,6 +21,9 @@ ROOT = Path(__file__).resolve().parent.parent
 CATALOG_PATH = ROOT / "models.toml"
 CONVERT_PATH = ROOT / "scripts" / "convert.py"
 OVMS_CONTAINER = "local-llm-serve-ovms"
+# OVMS releases checked to ignore graph `truncate`: they pass max_length to the tokenizer without
+# truncation, so an over-long input is still HTTP 400.
+TRUNCATE_IGNORED = ("2026.4.0",)
 
 LLAMA_IMAGES = {
     "sycl": "ghcr.io/ggml-org/llama.cpp:server-intel",
@@ -327,8 +330,23 @@ def image_release(image: str) -> str:
     return match.group(1) if match else ""
 
 
+def ovms_image() -> str:
+    return os.environ.get("OVMS_IMAGE", "openvino/model_server:2026.4.0-gpu")
+
+
+def truncate_warning(entries: list[dict], release: str) -> str | None:
+    names = [entry["name"] for entry in entries if entry.get("truncate")]
+    if not names:
+        return None
+    head = f"warning: truncate is set on {', '.join(names)}"
+    if release in TRUNCATE_IGNORED:
+        return f"{head}, but OVMS {release} ignores it: an over-long input is HTTP 400"
+    checked = ", ".join(TRUNCATE_IGNORED)
+    return f"{head}; OVMS {checked} ignores it, and {release or '?'} is unchecked"
+
+
 def check_openvino_pin() -> None:
-    image = os.environ.get("OVMS_IMAGE", "openvino/model_server:2026.4.0-gpu")
+    image = ovms_image()
     pin = openvino_pin()
     release = image_release(image)
     if release != pin:
@@ -347,6 +365,32 @@ def pull_flags(entry: dict) -> list[str]:
     if entry.get("max_length"):
         flags += ["--max_length", str(entry["max_length"])]
     return flags
+
+
+def convert_command(entry: dict, directory: Path) -> list[str]:
+    command = [
+        "uv",
+        "run",
+        "--script",
+        str(CONVERT_PATH),
+        "--source",
+        entry["source"],
+        "--out",
+        str(directory),
+        "--device",
+        entry["device"],
+    ]
+    if entry.get("onnx"):
+        command += ["--onnx", entry["onnx"]]
+    if entry.get("pooling"):
+        command += ["--pooling", entry["pooling"]]
+    if entry.get("revision"):
+        command += ["--revision", entry["revision"]]
+    if entry.get("truncate"):
+        command += ["--truncate"]
+    if entry.get("max_length"):
+        command += ["--max-length", str(entry["max_length"])]
+    return command
 
 
 def compose_base() -> list[str]:
@@ -408,6 +452,11 @@ def apply_ovms(catalog: dict, only: str | None, replace: bool) -> None:
         if not actions:
             ovms_entry(catalog, only)
             raise SystemExit(f"{only} is disabled or not an ovms model")
+    warning = truncate_warning(
+        [ovms_entry(catalog, action["name"]) for action in actions], image_release(ovms_image())
+    )
+    if warning:
+        print(warning)
     rebuild = {action["name"] for action in actions} if replace else set()
     if replace and not only:
         raise SystemExit("REPLACE=1 needs NAME=, so one model directory is deleted")
@@ -429,27 +478,7 @@ def apply_ovms(catalog: dict, only: str | None, replace: bool) -> None:
         if action["name"] in rebuild and directory.exists():
             safe_rmtree(root, directory)
         if action["prepare"] == "convert":
-            command = [
-                "uv",
-                "run",
-                "--script",
-                str(CONVERT_PATH),
-                "--source",
-                entry["source"],
-                "--out",
-                str(directory),
-                "--device",
-                entry["device"],
-            ]
-            if entry.get("onnx"):
-                command += ["--onnx", entry["onnx"]]
-            if entry.get("pooling"):
-                command += ["--pooling", entry["pooling"]]
-            if entry.get("revision"):
-                command += ["--revision", entry["revision"]]
-            if entry.get("max_length"):
-                command += ["--max-length", str(entry["max_length"])]
-            run(command)
+            run(convert_command(entry, directory))
         else:
             subdir = entry["device"].lower()
             run(

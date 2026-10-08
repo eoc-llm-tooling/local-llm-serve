@@ -1,12 +1,27 @@
+import importlib
 import json
 import os
 import sys
 import tempfile
+import types
 import unittest
 from pathlib import Path
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 import catalog
+
+
+def load_convert() -> types.ModuleType:
+    # convert.py runs under its own uv script environment; its imports are stubbed here.
+    stubs = {
+        "openvino": types.ModuleType("openvino"),
+        "huggingface_hub": types.ModuleType("huggingface_hub"),
+    }
+    stubs["huggingface_hub"].snapshot_download = None
+    with mock.patch.dict(sys.modules, stubs):
+        sys.modules.pop("convert", None)
+        return importlib.import_module("convert")
 
 
 def write_model(root: Path, rel: str, graph: str, weights: bool = True) -> None:
@@ -107,6 +122,51 @@ class OvmsActionTests(unittest.TestCase):
             "device": "GPU",
         }
         self.assertEqual(catalog.ovms_rel(entry), "gpu/converted/gte-modernbert-base")
+
+
+BGE_SMALL_NPU = {
+    "name": "bge-small-npu",
+    "prepare": "convert",
+    "source": "BAAI/bge-small-en-v1.5",
+    "device": "NPU",
+    "onnx": "onnx/model.onnx",
+    "truncate": True,
+    "max_length": 512,
+}
+
+
+class ConvertTests(unittest.TestCase):
+    def test_command_truncate(self) -> None:
+        command = catalog.convert_command(BGE_SMALL_NPU, Path("/b/npu"))
+        self.assertIn("--truncate", command)
+        self.assertEqual(command[command.index("--max-length") + 1], "512")
+        plain = {key: value for key, value in BGE_SMALL_NPU.items() if key != "truncate"}
+        self.assertNotIn("--truncate", catalog.convert_command(plain, Path("/b/npu")))
+        self.assertNotIn(
+            "--truncate", catalog.convert_command({**plain, "truncate": False}, Path("/b/npu"))
+        )
+
+    def test_graph_truncate(self) -> None:
+        convert = load_convert()
+        cut = catalog.graph_fields(convert.graph("CLS", "NPU", 512, truncate=True))
+        self.assertEqual(cut.get("truncate"), "true")
+        self.assertEqual(cut.get("max_length"), "512")
+        plain = convert.graph("CLS", "GPU", None, truncate=False)
+        self.assertNotIn("truncate", plain)
+        self.assertNotIn("max_length", plain)
+
+    def test_converted_graph_matches_catalog(self) -> None:
+        convert = load_convert()
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            rel = catalog.ovms_rel(BGE_SMALL_NPU)
+            write_model(root, rel, convert.graph("CLS", "NPU", 512, truncate=True))
+            action = catalog.ovms_action(BGE_SMALL_NPU, root, accel=True)
+            self.assertEqual(action["kind"], "present", action["detail"])
+            write_model(root / "plain", rel, convert.graph("CLS", "NPU", 512, truncate=False))
+            stale = catalog.ovms_action(BGE_SMALL_NPU, root / "plain", accel=True)
+            self.assertEqual(stale["kind"], "stale")
+            self.assertIn("truncate", stale["detail"])
 
 
 class ConfigTests(unittest.TestCase):
@@ -227,6 +287,29 @@ class OllamaTests(unittest.TestCase):
             self.assertTrue(catalog.ollama_present(root, "qwen3-embedding:0.6b"))
 
 
+TRUNCATE_ENTRIES = [
+    {"name": "bge-gpu", "truncate": True},
+    {"name": "gte-gpu"},
+    {"name": "bge-small-npu", "truncate": True},
+]
+
+
+class TruncateWarningTests(unittest.TestCase):
+    def test_checked_release(self) -> None:
+        warning = catalog.truncate_warning(TRUNCATE_ENTRIES, "2026.4.0")
+        self.assertIn("bge-gpu, bge-small-npu", warning)
+        self.assertIn("OVMS 2026.4.0 ignores it", warning)
+        self.assertNotIn("gte-gpu", warning)
+
+    def test_unchecked_release(self) -> None:
+        warning = catalog.truncate_warning(TRUNCATE_ENTRIES, "2026.5.0")
+        self.assertIn("2026.5.0 is unchecked", warning)
+        self.assertNotIn("HTTP 400", warning)
+
+    def test_none_without_truncate(self) -> None:
+        self.assertIsNone(catalog.truncate_warning([{"name": "gte-gpu"}], "2026.4.0"))
+
+
 class CatalogFileTests(unittest.TestCase):
     def test_shipped_catalog(self) -> None:
         loaded = catalog.load_catalog()
@@ -234,6 +317,12 @@ class CatalogFileTests(unittest.TestCase):
         names = [entry["name"] for entry in loaded["ovms"]]
         self.assertIn("bge-gpu", names)
         self.assertIn("gte-npu", names)
+        rows = {entry["name"]: entry for entry in loaded["ovms"]}
+        for name in ("bge-small-gpu", "bge-small-npu"):
+            self.assertEqual(rows[name]["prepare"], "convert")
+            self.assertEqual(rows[name]["source"], "BAAI/bge-small-en-v1.5")
+            self.assertTrue(rows[name]["truncate"])
+        self.assertEqual(rows["bge-small-npu"]["max_length"], 512)
 
     def test_openvino_pin_matches_default_image(self) -> None:
         self.assertEqual(catalog.openvino_pin(), "2026.4.0")
