@@ -1,4 +1,5 @@
 .env
+models.enabled.local.toml
 .run/
 __pycache__/
 .venv/

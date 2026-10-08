@@ -31,6 +31,10 @@ One stack runs at a time: two OVMS processes on one GPU share a compile cache.
 On demand with `make llama-up NAME=…`, all llama.cpp completion models: `qwen3-8b`, `qwen2.5-7b`,
 `gemma3-4b`, `phi4-mini`, `coder-1.5b`, `coder-3b`, `coder-7b`.
 
+`models.enabled.toml` turns each model on or off; `qwen3-gpu`, `qwen3-npu`, `bge-small-gpu`,
+`bge-small-npu` and the on-demand llama.cpp models are off. `make enabled-models-config` copies it
+to the git-ignored `models.enabled.local.toml`, which is read instead.
+
 The catalog, the flags each model is prepared with and the weight layouts are in
 [docs/models.md](docs/models.md).
 
@@ -43,6 +47,7 @@ The catalog, the flags each model is prepared with and the weight layouts are in
 ```bash
 cp .env.example .env          # optional; the Makefile defaults bind loopback and ~/.local-llm-serve
 make devices
+make enabled-models-config    # optional; edit models.enabled.local.toml to turn models on or off
 make models                   # leaves a directory that already holds the model
 make up                       # OVMS, plus Qwen3-4B Instruct when its GGUF is present
 make show

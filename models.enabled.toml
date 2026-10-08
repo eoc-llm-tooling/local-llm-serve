@@ -1,0 +1,26 @@
+# Which models in models.toml are enabled. Every name there is listed here.
+# `make enabled-models-config` copies this file to models.enabled.local.toml, which is git-ignored
+# and read instead when present. A name the local file lacks keeps the value set here.
+# A disabled model is not prepared by `make models`, published to the OVMS config or reported
+# missing. `make ovms-pull NAME=` still builds one, and `make llama-up NAME=` still starts one.
+
+bge-gpu = true
+bge-npu = true
+bge-small-gpu = false
+bge-small-npu = false
+qwen3-gpu = false
+qwen3-npu = false
+gte-gpu = true
+gte-npu = true
+
+"qwen3-embedding:0.6b" = true
+
+qwen3-4b = true
+qwen3-embed = true
+qwen3-8b = false
+"qwen2.5-7b" = false
+gemma3-4b = false
+phi4-mini = false
+"coder-1.5b" = false
+coder-3b = false
+coder-7b = false

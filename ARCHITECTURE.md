@@ -9,6 +9,7 @@ How the parts of the repository fit together. What each server does and how to r
 | Path | Role |
 |---|---|
 | `models.toml` | the catalog: every model a server loads, with its server, device and per-model flags |
+| `models.enabled.toml` | which catalog models are enabled; a git-ignored `models.enabled.local.toml` is read instead when present |
 | `Makefile` | the entry point; every operation is a target, and its defaults are overridden by `.env` |
 | `.env.example` | the settings a machine overrides: ports, `BIND`, image tags, model directories |
 | `compose.yaml` | the OVMS and Ollama services |
@@ -24,8 +25,9 @@ How the parts of the repository fit together. What each server does and how to r
 
 ## Flow
 
-`make models` runs `scripts/catalog.py apply`. It reads `models.toml`, inspects the directories
-under `MODELS_DIR`, and acts only where a directory does not already match its row: an OVMS
+`make models` runs `scripts/catalog.py apply`. It reads `models.toml` and the enabled models,
+inspects the directories under `MODELS_DIR`, and acts only where an enabled row's directory does
+not already match it: an OVMS
 model is pulled or converted, an Ollama model is pulled, a GGUF is reported. It then writes the
 OVMS `config.json`, leaving out NPU rows when the device is absent.
 

@@ -312,7 +312,7 @@ class TruncateWarningTests(unittest.TestCase):
 
 class CatalogFileTests(unittest.TestCase):
     def test_shipped_catalog(self) -> None:
-        loaded = catalog.load_catalog()
+        loaded = catalog.load_catalog(enabled_local=None)
         self.assertEqual(catalog.llama_default(loaded)["name"], "qwen3-4b")
         names = [entry["name"] for entry in loaded["ovms"]]
         self.assertIn("bge-gpu", names)
@@ -323,6 +323,10 @@ class CatalogFileTests(unittest.TestCase):
             self.assertEqual(rows[name]["source"], "BAAI/bge-small-en-v1.5")
             self.assertTrue(rows[name]["truncate"])
         self.assertEqual(rows["bge-small-npu"]["max_length"], 512)
+        off = {"qwen3-gpu", "qwen3-npu", "bge-small-gpu", "bge-small-npu"}
+        for name, entry in rows.items():
+            self.assertEqual(catalog.enabled(entry), name not in off, name)
+        self.assertTrue(catalog.llama_default(loaded)["enabled"])
 
     def test_openvino_pin_matches_default_image(self) -> None:
         self.assertEqual(catalog.openvino_pin(), "2026.4.0")
@@ -346,6 +350,57 @@ port = 1
             path.write_text(text)
             with self.assertRaises(SystemExit):
                 catalog.load_catalog(path)
+
+
+SMALL_CATALOG = """\
+[[ovms]]
+name = "embed"
+source = "OpenVINO/a"
+device = "GPU"
+
+[[llama]]
+name = "chat"
+default = true
+hf = "org/M:Q4_K_M"
+port = 1
+"""
+
+
+class EnabledTests(unittest.TestCase):
+    def load(self, catalog_text: str, default: str, local: str | None) -> dict:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "models.toml").write_text(catalog_text)
+            (root / "default.toml").write_text(default)
+            if local is not None:
+                (root / "local.toml").write_text(local)
+            loaded = catalog.load_catalog(
+                root / "models.toml", root / "default.toml", root / "local.toml"
+            )
+        return {
+            entry["name"]: entry["enabled"] for kind in ("ovms", "llama") for entry in loaded[kind]
+        }
+
+    def test_default_without_local(self) -> None:
+        toggles = self.load(SMALL_CATALOG, "embed = false\nchat = true\n", None)
+        self.assertEqual(toggles, {"embed": False, "chat": True})
+
+    def test_local_wins_and_falls_back(self) -> None:
+        toggles = self.load(SMALL_CATALOG, "embed = false\nchat = true\n", "embed = true\n")
+        self.assertEqual(toggles, {"embed": True, "chat": True})
+
+    def test_unknown_name_rejected(self) -> None:
+        with self.assertRaises(SystemExit):
+            self.load(SMALL_CATALOG, "embed = true\nchat = true\n", "typo = true\n")
+
+    def test_unlisted_name_rejected(self) -> None:
+        with self.assertRaises(SystemExit):
+            self.load(SMALL_CATALOG, "chat = true\n", None)
+
+    def test_enabled_in_catalog_rejected(self) -> None:
+        text = SMALL_CATALOG.replace("port = 1\n", "port = 1\nenabled = false\n")
+        with self.assertRaises(SystemExit):
+            self.load(text, "embed = true\nchat = true\n", None)
 
 
 if __name__ == "__main__":

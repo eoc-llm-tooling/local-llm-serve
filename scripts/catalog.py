@@ -19,6 +19,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 CATALOG_PATH = ROOT / "models.toml"
+ENABLED_PATH = ROOT / "models.enabled.toml"
+ENABLED_LOCAL_PATH = ROOT / "models.enabled.local.toml"
 CONVERT_PATH = ROOT / "scripts" / "convert.py"
 OVMS_CONTAINER = "local-llm-serve-ovms"
 # OVMS releases checked to ignore graph `truncate`: they pass max_length to the tokenizer without
@@ -46,14 +48,50 @@ def accel_present() -> bool:
     return Path(os.environ.get("ACCEL_NODE", "/dev/accel/accel0")).exists()
 
 
-def load_catalog(path: Path | None = None) -> dict:
+def load_toggles(default: Path, local: Path | None) -> dict:
+    with default.open("rb") as handle:
+        toggles = tomllib.load(handle)
+    if local is not None and local.exists():
+        with local.open("rb") as handle:
+            toggles |= tomllib.load(handle)
+    return toggles
+
+
+def load_catalog(
+    path: Path | None = None,
+    enabled_default: Path = ENABLED_PATH,
+    enabled_local: Path | None = ENABLED_LOCAL_PATH,
+) -> dict:
     path = path or CATALOG_PATH
     with path.open("rb") as handle:
         catalog = tomllib.load(handle)
-    problems = validate(catalog)
+    toggles = load_toggles(enabled_default, enabled_local)
+    problems = validate(catalog) + validate_toggles(catalog, toggles)
     if problems:
         raise SystemExit("models.toml:\n  " + "\n  ".join(problems))
+    for kind in ("ovms", "ollama", "llama"):
+        for entry in catalog.get(kind, []):
+            entry["enabled"] = toggles[entry["name"]]
     return catalog
+
+
+def validate_toggles(catalog: dict, toggles: dict) -> list[str]:
+    problems: list[str] = []
+    names = set()
+    for kind in ("ovms", "ollama", "llama"):
+        for entry in catalog.get(kind, []):
+            name = entry.get("name")
+            names.add(name)
+            if "enabled" in entry:
+                problems.append(f"{name}: enabled belongs in models.enabled.toml")
+            if name not in toggles:
+                problems.append(f"{name}: not in models.enabled.toml")
+    for name, value in toggles.items():
+        if name not in names:
+            problems.append(f"models.enabled: {name} is not in models.toml")
+        elif not isinstance(value, bool):
+            problems.append(f"models.enabled: {name} is true or false")
+    return problems
 
 
 def validate(catalog: dict) -> list[str]:
@@ -446,12 +484,10 @@ def apply_ovms(catalog: dict, only: str | None, replace: bool) -> None:
     (root / "gpu").mkdir(parents=True, exist_ok=True)
     (root / "npu").mkdir(parents=True, exist_ok=True)
     (root / "cache").mkdir(parents=True, exist_ok=True)
-    actions = ovms_actions(catalog, root, accel_present())
     if only:
-        actions = [action for action in actions if action["name"] == only]
-        if not actions:
-            ovms_entry(catalog, only)
-            raise SystemExit(f"{only} is disabled or not an ovms model")
+        actions = [ovms_action(ovms_entry(catalog, only), root, accel_present())]
+    else:
+        actions = ovms_actions(catalog, root, accel_present())
     warning = truncate_warning(
         [ovms_entry(catalog, action["name"]) for action in actions], image_release(ovms_image())
     )
@@ -499,6 +535,8 @@ def apply_ovms(catalog: dict, only: str | None, replace: bool) -> None:
                     *pull_flags(entry),
                 ]
             )
+    if only and not enabled(ovms_entry(catalog, only)):
+        print(f"ovms {only}: disabled, so not published; enable it in models.enabled.local.toml")
     # Republish every servable graph. A one-model pull would otherwise drop the others.
     publish = served_actions(ovms_actions(catalog, root, accel_present()))
     current = config_names(root / "config.json")
@@ -652,9 +690,11 @@ def main() -> None:
         cmd_show(catalog)
     elif args.command == "list":
         for entry in catalog.get("ovms", []):
-            print(f"ovms    {entry['name']}")
+            off = "" if enabled(entry) else " disabled"
+            print(f"ovms    {entry['name']}{off}")
         for entry in catalog.get("ollama", []):
-            print(f"ollama  {entry['name']}")
+            off = "" if enabled(entry) else " disabled"
+            print(f"ollama  {entry['name']}{off}")
         for entry in catalog.get("llama", []):
             flag = " default" if entry.get("default") else ""
             off = "" if enabled(entry) else " disabled"

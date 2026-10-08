@@ -56,4 +56,8 @@ The llama directory holds either layout, including both at once:
 
 `LLAMA_CACHE` and `HF_HUB_CACHE` point at that directory, and the same directory is mounted at the legacy `/root/.cache/llama.cpp` path.
 
-Presets with `enabled = false` (Qwen3-8B, Qwen2.5-7B, Gemma3-4B, Phi-4-mini, and the Qwen2.5-Coder 1.5B / 3B / 7B GGUFs) are started by name and are not reported missing by `make models`.
+## Enabled models
+
+`models.enabled.toml` sets each name in `models.toml` to `true` or `false`. `make enabled-models-config` copies it to `models.enabled.local.toml`, which is git-ignored and read instead when present; a name the local file lacks keeps the default's value, and a name `models.toml` does not have is an error.
+
+A disabled model is not prepared by `make models`, published to the OVMS config or reported missing. `make ovms-pull NAME=` still builds one, and `make llama-up NAME=` still starts one. Disabled by default: `qwen3-gpu`, `qwen3-npu`, `bge-small-gpu`, `bge-small-npu`, and the llama.cpp presets Qwen3-8B, Qwen2.5-7B, Gemma3-4B, Phi-4-mini and the Qwen2.5-Coder 1.5B / 3B / 7B GGUFs.
