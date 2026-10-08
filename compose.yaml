@@ -1,0 +1,49 @@
+# OVMS and Ollama. Loopback is the published address; each process binds all interfaces
+# inside the container, so BIND=0.0.0.0 is what opens the LAN. Run through the Makefile,
+# which exports HOST_UID, HOST_GID and RENDER_GID.
+name: local-llm-serve
+
+services:
+  ovms:
+    image: ${OVMS_IMAGE:-openvino/model_server:2026.4.0-gpu}
+    container_name: local-llm-serve-ovms
+    user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
+    devices: [/dev/dri]
+    group_add: ["${RENDER_GID:-render}"]
+    environment:
+      HTTPS_PROXY: ${HTTPS_PROXY:-}
+      HTTP_PROXY: ${HTTP_PROXY:-}
+      NO_PROXY: ${NO_PROXY:-}
+    ports: ["${BIND:-127.0.0.1}:${OVMS_PORT:-11551}:8000"]
+    volumes: ["${OVMS_DIR:?}:/b"]
+    command: --rest_port 8000 --config_path /b/config.json --cache_dir /b/cache --log_level INFO
+    restart: "no"
+
+  ollama:
+    image: local-llm-serve/ollama-vulkan
+    build:
+      context: .
+      dockerfile: Dockerfile.ollama
+      args:
+        OLLAMA_IMAGE: ${OLLAMA_IMAGE:-ollama/ollama:0.34.3}
+        HTTPS_PROXY: ${HTTPS_PROXY:-}
+        HTTP_PROXY: ${HTTP_PROXY:-}
+        NO_PROXY: ${NO_PROXY:-}
+    container_name: local-llm-serve-ollama
+    # Runs as root, so the device-node group does not apply. The log line
+    # "inference compute" names the backend Ollama picked.
+    devices: [/dev/dri]
+    environment:
+      # Vulkan is on by default, but discovery drops integrated GPUs without this.
+      OLLAMA_IGPU_ENABLE: "1"
+      OLLAMA_DEBUG: ${OLLAMA_DEBUG:-0}
+      OLLAMA_NUM_PARALLEL: ${OLLAMA_NUM_PARALLEL:-1}
+      OLLAMA_KEEP_ALIVE: "-1"
+      # Embeddings truncate silently at this length.
+      OLLAMA_CONTEXT_LENGTH: ${OLLAMA_CONTEXT_LENGTH:-8192}
+      HTTPS_PROXY: ${HTTPS_PROXY:-}
+      HTTP_PROXY: ${HTTP_PROXY:-}
+      NO_PROXY: ${NO_PROXY:-}
+    ports: ["${BIND:-127.0.0.1}:${OLLAMA_PORT:-11439}:11434"]
+    volumes: ["${OLLAMA_DIR:?}:/root/.ollama"]
+    restart: "no"

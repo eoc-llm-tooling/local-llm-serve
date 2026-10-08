@@ -1,0 +1,20 @@
+# One llama.cpp server, one GGUF. The Makefile starts a compose project per catalog name
+# so an embedding server and a chat server can both be up. SYCL and Vulkan are two images.
+services:
+  llama:
+    image: ${LLAMA_IMAGE:?}
+    container_name: ${LLAMA_CONTAINER:?}
+    devices: [/dev/dri]
+    environment:
+      HTTPS_PROXY: ${HTTPS_PROXY:-}
+      HTTP_PROXY: ${HTTP_PROXY:-}
+      NO_PROXY: ${NO_PROXY:-}
+      # Current llama-server uses LLAMA_CACHE as the Hugging Face hub root.
+      # The same directory is mounted at the legacy ~/.cache/llama.cpp path.
+      LLAMA_CACHE: /models
+      HF_HUB_CACHE: /models
+    ports: ["${BIND:-127.0.0.1}:${LLAMA_PORT:?}:8080"]
+    volumes:
+      - ${LLAMA_DIR:?}:/models
+      - ${LLAMA_DIR:?}:/root/.cache/llama.cpp
+    restart: "no"

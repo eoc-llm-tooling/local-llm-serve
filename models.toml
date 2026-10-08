@@ -1,0 +1,156 @@
+# What `make models` prepares, and what `make llama-up` can start.
+# enabled = false is listed and starts on demand; it is not prepared or reported as missing.
+# device, pooling, truncate and max_length are written into graph.pbtxt at pull or convert time.
+# A directory that already has that graph is left in place. REPLACE=1 on `make ovms-pull NAME=`
+# deletes that one directory first.
+
+[[ovms]]
+name = "bge-gpu"
+source = "OpenVINO/bge-base-en-v1.5-fp16-ov"
+device = "GPU"
+truncate = true
+
+[[ovms]]
+name = "bge-npu"
+source = "OpenVINO/bge-base-en-v1.5-fp16-ov"
+device = "NPU"
+pooling = "CLS"
+# Same IR as bge-gpu. Static length is the BERT window; a longer input is rejected.
+max_length = 512
+
+[[ovms]]
+name = "qwen3-gpu"
+source = "OpenVINO/Qwen3-Embedding-0.6B-int8-ov"
+device = "GPU"
+pooling = "LAST"
+
+[[ovms]]
+name = "qwen3-npu"
+source = "OpenVINO/Qwen3-Embedding-0.6B-int8-ov"
+device = "NPU"
+pooling = "LAST"
+# Static shape. The NPU compiles this length; a longer input is rejected.
+max_length = 2048
+
+[[ovms]]
+name = "gte-gpu"
+prepare = "convert"
+source = "Alibaba-NLP/gte-modernbert-base"
+device = "GPU"
+onnx = "onnx/model.onnx"
+
+[[ovms]]
+name = "gte-npu"
+prepare = "convert"
+source = "Alibaba-NLP/gte-modernbert-base"
+device = "NPU"
+onnx = "onnx/model.onnx"
+# OVMS 2026.4 compiles a non-Qwen embedding model for the NPU only below 1024 tokens,
+# and every input is padded to this length. A query graph.
+max_length = 256
+
+[[ollama]]
+name = "qwen3-embedding:0.6b"
+
+# Q4_K_M instruct, no reasoning pass. `make up` starts this one when the GGUF is on disk.
+[[llama]]
+name = "qwen3-4b"
+default = true
+role = "completion"
+backend = "sycl"
+hf = "unsloth/Qwen3-4B-Instruct-2507-GGUF:Q4_K_M"
+port = 11441
+parallel = 4
+ctx = 16384
+max_tokens = 512
+
+[[llama]]
+name = "qwen3-embed"
+role = "embedding"
+backend = "sycl"
+hf = "Qwen/Qwen3-Embedding-0.6B-GGUF:Q8_0"
+port = 11440
+parallel = 8
+ctx = 16384
+# Physical batch. llama.cpp refuses an embedding input longer than this.
+ubatch = 2048
+pooling = "last"
+
+[[llama]]
+name = "qwen3-8b"
+enabled = false
+role = "completion"
+backend = "sycl"
+hf = "Qwen/Qwen3-8B-GGUF:Q4_K_M"
+port = 11442
+parallel = 4
+ctx = 16384
+max_tokens = 512
+# This checkpoint thinks until told otherwise. The 4B 2507 instruct preset has no such flag.
+extra = ["--reasoning-budget", "0"]
+
+[[llama]]
+name = "qwen2.5-7b"
+enabled = false
+role = "completion"
+backend = "sycl"
+hf = "Qwen/Qwen2.5-7B-Instruct-GGUF:Q4_K_M"
+port = 11443
+parallel = 4
+ctx = 16384
+max_tokens = 512
+
+[[llama]]
+name = "gemma3-4b"
+enabled = false
+role = "completion"
+backend = "sycl"
+hf = "ggml-org/gemma-3-4b-it-GGUF:Q4_K_M"
+port = 11444
+parallel = 4
+ctx = 16384
+max_tokens = 512
+
+[[llama]]
+name = "phi4-mini"
+enabled = false
+role = "completion"
+backend = "sycl"
+hf = "unsloth/Phi-4-mini-instruct-GGUF:Q4_K_M"
+port = 11445
+parallel = 4
+ctx = 16384
+max_tokens = 512
+
+[[llama]]
+name = "coder-1.5b"
+enabled = false
+role = "completion"
+backend = "sycl"
+hf = "ggml-org/Qwen2.5-Coder-1.5B-Q8_0-GGUF"
+port = 11446
+parallel = 4
+ctx = 16384
+max_tokens = 512
+
+[[llama]]
+name = "coder-3b"
+enabled = false
+role = "completion"
+backend = "sycl"
+hf = "ggml-org/Qwen2.5-Coder-3B-Q8_0-GGUF"
+port = 11447
+parallel = 4
+ctx = 16384
+max_tokens = 512
+
+[[llama]]
+name = "coder-7b"
+enabled = false
+role = "completion"
+backend = "sycl"
+hf = "ggml-org/Qwen2.5-Coder-7B-Q8_0-GGUF"
+port = 11448
+parallel = 4
+ctx = 16384
+max_tokens = 512
