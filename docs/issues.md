@@ -19,5 +19,5 @@ rejected (won't fix or not a bug, reason in Resolution).
 
 ## At a glance
 
-| # | Issue | Severity | Status |
-|---|---|---|---|
+| # | Issue | Component | Severity | Status |
+|---|---|---|---|---|
